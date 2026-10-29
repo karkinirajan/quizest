@@ -8,6 +8,7 @@ A Django app for uploading and managing course/quiz packages. Signed-in users up
 - Create, update (including replacing the file) and delete uploads; deleting asks for confirmation and requires a POST.
 - Registration (with full name), login/logout, password reset, and a profile page with an avatar.
 - Google sign-in when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set.
+- Uploads are validated: extension allow-list (default `zip`, `pdf`, `pptx`, `docx`, `xlsx`, `csv`, `txt`; HTML, SVG, JavaScript, PHP and executables are refused), a size cap (default 200 MB) and a check that ZIP/Office/PDF files really start with the right signature. Configure with `STORE_ALLOWED_EXTENSIONS` and `STORE_MAX_UPLOAD_MB`.
 - Static course assets are served from `static/` (an exported course player); `staticfiles/` is generated and git-ignored.
 
 ## Stack
@@ -38,6 +39,8 @@ uv run python manage.py runserver
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | empty | comma-separated origins |
 | `DATABASE_URL` | local SQLite file | any dj-database-url URL |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | unset | enable Google sign-in |
+| `STORE_ALLOWED_EXTENSIONS` | `zip,pdf,pptx,docx,xlsx,csv,txt` | comma-separated upload allow-list |
+| `STORE_MAX_UPLOAD_MB` | `200` | maximum upload size |
 
 With `DJANGO_DEBUG=false` the app also enables HTTPS redirect, secure cookies and HSTS. `Procfile` runs gunicorn; run `migrate` and `collectstatic --noinput` on deploy.
 
@@ -48,7 +51,11 @@ uv run pytest -q
 uv run ruff check . && uv run ruff format --check .
 ```
 
-21 tests cover access control, upload create/update/delete (with real file uploads), registration, profiles and the admin. They use `courseapp.settings_test` (in-memory SQLite, temporary media). CI: `.github/workflows/ci.yml`.
+40 tests cover access control, upload create/update/delete (with real file uploads), upload validation, registration, profiles and the admin. They use `courseapp.settings_test` (in-memory SQLite, temporary media). CI: `.github/workflows/ci.yml`.
+
+## Serving uploads safely
+
+The app stores uploads under `MEDIA_ROOT` but does not serve them in production (Django serves `/media/` only when `DJANGO_DEBUG=true`). Serve them from your web server or object storage on a separate origin, with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`, so an uploaded file can never run as a page on your site's origin.
 
 ## Project structure
 

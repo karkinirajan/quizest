@@ -24,7 +24,7 @@ def store(db):
     )
 
 
-def upload(name="b.zip", data=b"zip-bytes"):
+def upload(name="b.zip", data=b"PK\x03\x04zip-bytes"):
     return SimpleUploadedFile(name, data)
 
 
@@ -57,7 +57,7 @@ def test_create_renders_and_saves_with_the_uploaded_file(logged_in):
     res = logged_in.post(reverse("create"), {"name": "New course", "uploaded_file": upload()})
     assert res.status_code == 302 and res.url == reverse("dashboard")
     saved = Store.objects.get(name="New course")
-    assert saved.uploaded_file.read() == b"zip-bytes"
+    assert saved.uploaded_file.read() == b"PK\x03\x04zip-bytes"
 
 
 def test_create_without_a_file_shows_errors(logged_in):
@@ -69,10 +69,10 @@ def test_create_without_a_file_shows_errors(logged_in):
 def test_update_changes_the_name_and_can_replace_the_file(logged_in, store):
     url = reverse("store-update", args=[store.id])
     assert logged_in.get(url).status_code == 200
-    res = logged_in.post(url, {"name": "Renamed", "uploaded_file": upload("new.zip", b"new")})
+    res = logged_in.post(url, {"name": "Renamed", "uploaded_file": upload("new.zip", b"PKnew")})
     assert res.status_code == 302
     store.refresh_from_db()
-    assert store.name == "Renamed" and store.uploaded_file.read() == b"new"
+    assert store.name == "Renamed" and store.uploaded_file.read() == b"PKnew"
 
 
 def test_update_keeps_the_existing_file_when_none_is_sent(logged_in, store):
@@ -171,3 +171,84 @@ def test_admin_renders_with_the_jazzmin_theme(client, db):
     client.force_login(admin)
     assert client.get("/admin/").status_code == 200
     assert client.get("/admin/course/store/").status_code == 200
+
+
+# --- upload validation (security) ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "page.html",
+        "image.svg",
+        "run.js",
+        "shell.php",
+        "tool.exe",
+        "x.sh",
+        "noextension",
+        "a.zip.html",
+    ],
+)
+def test_dangerous_or_unknown_extensions_are_rejected(logged_in, name):
+    res = logged_in.post(
+        reverse("create"), {"name": "bad", "uploaded_file": upload(name, b"<script>")}
+    )
+    assert res.status_code == 200 and "uploaded_file" in res.context["form"].errors
+    assert Store.objects.count() == 0
+
+
+@pytest.mark.parametrize("name", ["a.zip", "b.pdf", "c.pptx", "d.docx", "e.csv", "UPPER.ZIP"])
+def test_allowed_extensions_with_matching_content_are_accepted(logged_in, name):
+    body = (
+        b"%PDF-1.4 ..."
+        if name.endswith("pdf")
+        else b"PK\x03\x04..."
+        if name.lower().endswith(("zip", "pptx", "docx"))
+        else b"a,b\n1,2\n"
+    )
+    res = logged_in.post(reverse("create"), {"name": "ok", "uploaded_file": upload(name, body)})
+    assert res.status_code == 302 and Store.objects.count() == 1
+
+
+def test_content_must_match_the_extension(logged_in):
+    for name, body in (("fake.zip", b"<html>not a zip"), ("fake.pdf", b"MZ\x90\x00 exe")):
+        res = logged_in.post(
+            reverse("create"), {"name": "bad", "uploaded_file": upload(name, body)}
+        )
+        assert res.status_code == 200
+        assert "does not match" in str(res.context["form"].errors["uploaded_file"])
+    assert Store.objects.count() == 0
+
+
+def test_oversized_files_are_rejected(logged_in, settings):
+    settings.STORE_MAX_UPLOAD_MB = 1
+    big = upload("big.zip", b"PK" + b"0" * (1024 * 1024))
+    res = logged_in.post(reverse("create"), {"name": "big", "uploaded_file": big})
+    assert res.status_code == 200 and "limit" in str(res.context["form"].errors["uploaded_file"])
+
+
+def test_the_allow_list_is_configurable(logged_in, settings):
+    settings.STORE_ALLOWED_EXTENSIONS = ["csv"]
+    zipped = logged_in.post(
+        reverse("create"), {"name": "z", "uploaded_file": upload("a.zip", b"PK..")}
+    )
+    assert zipped.status_code == 200
+    ok = logged_in.post(reverse("create"), {"name": "c", "uploaded_file": upload("a.csv", b"a,b")})
+    assert ok.status_code == 302
+
+
+def test_replacing_a_file_in_update_is_validated_too(logged_in, store):
+    url = reverse("store-update", args=[store.id])
+    res = logged_in.post(url, {"name": "x", "uploaded_file": upload("evil.html", b"<script>")})
+    assert res.status_code == 200
+    store.refresh_from_db()
+    assert store.uploaded_file.name.endswith(".zip")
+
+
+def test_the_admin_form_enforces_the_same_rules(db):
+    from django.core.exceptions import ValidationError
+
+    from course.validators import validate_upload
+
+    with pytest.raises(ValidationError):
+        validate_upload(SimpleUploadedFile("x.svg", b"<svg onload=alert(1)>"))

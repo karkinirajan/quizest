@@ -25,8 +25,11 @@ A Django 4.0 app (`course`, project `courseapp`) with 2022 pins, hardcoded secre
 ## A mistake I made and caught
 I first removed `django-crispy-forms` as "unused" after a `grep` that had silently failed on a shell glob; the test run then failed with `'crispy_forms_tags' is not a registered tag library`. It is used by seven templates and is restored (with the Bootstrap 5 template pack, matching the site's Bootstrap 5.2 CSS). `django-mptt` was re-checked with a plain recursive grep and really is unused.
 
+## Follow-up: automated security review (fixed)
+A review of the commit flagged unrestricted file upload on `Store.uploaded_file`. Added `course/validators.py` (applied to both file fields, so the admin is covered; migration `0003_upload_validators`): an extension allow-list (configurable, HTML/SVG/JS/PHP/executables excluded by default), a size cap, and a signature check that ZIP/Office/PDF files start with the expected bytes. Tests cover dangerous extensions (including `a.zip.html`), mismatched content, oversize files, the configurable list, and replacing a file on update. The allow-list is a judgement call because the app never documented the expected types, so adjust `STORE_ALLOWED_EXTENSIONS` to what you really upload. The signature check proves the header, not that the whole file is safe; serving uploads from a separate origin as attachments (see README) remains the real protection.
+
 ## Verification (actual runs)
-- `uv run pytest -q`: 21 passed. `uv run ruff check .` and `ruff format --check .`: clean.
+- `uv run pytest -q`: 40 passed. `uv run ruff check .` and `ruff format --check .`: clean.
 - `makemigrations --check`: no changes. `collectstatic` under the production storage succeeded. `check --deploy`: only the two optional HSTS warnings.
 - Not run: PostgreSQL, a browser, a real Google OAuth round trip.
 

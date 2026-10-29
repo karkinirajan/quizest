@@ -180,6 +180,10 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Upload limits for course packages (see course/validators.py)
+STORE_ALLOWED_EXTENSIONS = env_list("STORE_ALLOWED_EXTENSIONS") or None  # default list when unset
+STORE_MAX_UPLOAD_MB = int(os.environ.get("STORE_MAX_UPLOAD_MB", "200"))
+
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 

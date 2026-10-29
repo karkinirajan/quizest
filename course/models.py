@@ -4,6 +4,8 @@ from django.contrib.auth.models import User
 from django.db import models
 from PIL import Image
 
+from course.validators import validate_upload
+
 
 class Profile(models.Model):
     full_name = models.CharField(max_length=100, blank=True)
@@ -31,10 +33,10 @@ class Profile(models.Model):
 
 class Store(models.Model):
     name = models.CharField(max_length=100)
-    uploaded_file = models.FileField(
-        upload_to="uploads/",
+    uploaded_file = models.FileField(upload_to="uploads/", validators=[validate_upload])
+    converted_file = models.FileField(
+        upload_to="converted_files", null=True, blank=True, validators=[validate_upload]
     )
-    converted_file = models.FileField(upload_to="converted_files", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
