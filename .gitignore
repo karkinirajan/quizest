@@ -129,3 +129,14 @@ dmypy.json
 .pyre/
 
 db.sqlite3
+# Generated / local
+staticfiles/
+media/
+db.sqlite3
+.venv/
+.env
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/

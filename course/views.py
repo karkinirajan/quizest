@@ -1,10 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, get_object_or_404, render, HttpResponseRedirect
-
-# relative import of forms
-from course.forms import ProfileUpdateForm, StoreForm, UserRegisterForm, UserUpdateForm
 from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404, redirect, render
+
+from course.forms import ProfileUpdateForm, StoreForm, UserRegisterForm, UserUpdateForm
 from course.models import Store
 
 
@@ -17,83 +16,42 @@ def dashboard(request):
 
 @login_required
 def create_view(request):
-    # dictionary for initial data with
-    # field names as keys
-    context = {}
-    if request.method == "POST":
-        form = StoreForm(request.POST, request.FILES)
-        if form.is_valid():
-            form.save()
-            return redirect("dashboard")
-    else:
-        form = StoreForm()
-        context["form"] = form
-        return render(request, "store_form.html", context)
-
-    form = StoreForm(request.POST or None)
-    context["form"] = form
-    return render(request, "store_form.html", context)
+    form = StoreForm(request.POST or None, request.FILES or None)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        return redirect("dashboard")
+    return render(request, "store_form.html", {"form": form})
 
 
-# update view for details
 @login_required
 def update_view(request, id):
-    # dictionary for initial data with
-    # field names as keys
-    context = {}
-    if request.method == "POST":
-
-        # fetch the object related to passed id
-        obj = get_object_or_404(Store, id=id)
-
-        # pass the object as instance in form
-        form = StoreForm(request.POST or None, instance=obj)
-
-        # save the data from the form and
-        # redirect to detail_view
-        if form.is_valid():
-            form.save()
-            return HttpResponseRedirect("/")
-
-        # add form dictionary to context
-        context["form"] = form
-
-        return render(request, "update_view.html", context)
     obj = get_object_or_404(Store, id=id)
-    form = StoreForm(request.POST or None, instance=obj)
-    context["form"] = form
-    return render(request, "update_view.html", context)
+    # request.FILES is needed so a replacement file can be uploaded
+    form = StoreForm(request.POST or None, request.FILES or None, instance=obj)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        return redirect("/")
+    return render(request, "update_view.html", {"form": form})
 
 
-# delete view for details
 @login_required
 def delete_view(request, id):
-    # dictionary for initial data with
-    # field names as keys
-    context = {}
-
-    # fetch the object related to passed id
     obj = get_object_or_404(Store, id=id)
-
     if request.method == "POST":
-        # delete object
         obj.delete()
-        # after deleting redirect to
-        # home page
-        return HttpResponseRedirect("/")
-
-    return render(request, "delete_view.html", context)
+        return redirect("/")
+    return render(request, "delete_view.html", {})
 
 
 def register(request):
     if request.method == "POST":
         form = UserRegisterForm(request.POST)
         if form.is_valid():
-            form.save()
-            username = form.cleaned_data.get("username")
-            messages.success(
-                request, f"Your account has been created! You are now able to log in"
-            )
+            user = form.save()
+            user.profile.full_name = form.cleaned_data["full_name"]
+            user.profile.email = user.email
+            user.profile.save()
+            messages.success(request, "Your account has been created! You are now able to log in")
             return redirect("dashboard")
     else:
         form = UserRegisterForm()
@@ -104,20 +62,14 @@ def register(request):
 def profile(request):
     if request.method == "POST":
         u_form = UserUpdateForm(request.POST, instance=request.user)
-        p_form = ProfileUpdateForm(
-            request.POST, request.FILES, instance=request.user.profile
-        )
-        if u_form.is_valid and p_form.is_valid:
+        p_form = ProfileUpdateForm(request.POST, request.FILES, instance=request.user.profile)
+        if u_form.is_valid() and p_form.is_valid():
             u_form.save()
             p_form.save()
-        messages.success(
-            request, f"Your account has been created! You are now able to log in"
-        )
-        return redirect("dashboard")
-
+            messages.success(request, "Your profile has been updated.")
+            return redirect("dashboard")
     else:
         u_form = UserUpdateForm(instance=request.user)
         p_form = ProfileUpdateForm(instance=request.user.profile)
 
-    context = {"u_form": u_form, "p_form": p_form}
-    return render(request, "account/profile.html", context)
+    return render(request, "account/profile.html", {"u_form": u_form, "p_form": p_form})

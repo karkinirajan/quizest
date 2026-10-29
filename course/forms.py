@@ -1,7 +1,9 @@
-from django import forms
 from allauth.account.forms import LoginForm
 from django import forms
-from course.models import Store
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+
+from course.models import Profile, Store
 
 
 class Loginform(LoginForm):
@@ -33,7 +35,6 @@ class Loginform(LoginForm):
 
 # creating a form
 class StoreForm(forms.ModelForm):
-
     # create meta class
     class Meta:
         # specify model to be used
@@ -44,12 +45,6 @@ class StoreForm(forms.ModelForm):
             "name",
             "uploaded_file",
         ]
-
-
-from django import forms
-from django.contrib.auth.models import User
-from django.contrib.auth.forms import UserCreationForm
-from course.models import Profile
 
 
 class UserRegisterForm(UserCreationForm):

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from course.models import Store, Profile
+from course.models import Profile, Store
 
 # Register your models here.
 # admin.site.register(Test)

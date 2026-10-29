@@ -6,4 +6,4 @@ class CourseConfig(AppConfig):
     name = "course"
 
     def ready(self):
-        import course.signals
+        import course.signals  # noqa: F401  (registers the profile post_save handlers)
